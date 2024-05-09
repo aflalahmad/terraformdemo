@@ -19,3 +19,8 @@ resource "azurerm_resource_group" "rg" {
     location = "southeastasia"
   
 }
+
+resource "azurerm_resource_group" "rg1" {
+    name = var.rgnew
+    location = var.location
+}
