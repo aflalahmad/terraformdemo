@@ -31,6 +31,7 @@ locals {
     }
     "nsg-vnet1-subnet2" = {
         name = "nsg-vnet1-subnte2"
+        
     }
     "nsg-vnet-subnte3" = {
         name = "nsg-vnet1-subnet3"
