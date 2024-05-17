@@ -1,16 +1,16 @@
 terraform {
   required_providers {
     azurerm = {
-        source = "hashicorp/azurerm"
-        version = "~> 3.0.2"
+      source  = "hashicorp/azurerm"
+      version = "~> 3.0.2"
     }
   }
   required_version = ">= 1.1.0"
 }
 
 provider "azurerm" {
-    features {}
- 
+  features {}
+
 }
 
 
@@ -18,166 +18,55 @@ data "azurerm_resource_group" "rg" {
   name = "data-block-rg"
 }
 
-resource "azurerm_virtual_network" "vnet1" {
-  name = "vnet1"
-  address_space = [ "10.0.0.0/16" ]
+resource "azurerm_virtual_network" "vnets" {
+  for_each = var.vnets
+
+  name                = each.key
+  address_space       = [each.value.address_space]
   resource_group_name = data.azurerm_resource_group.rg.name
-  location = data.azurerm_resource_group.rg.location
+  location            = data.azurerm_resource_group.rg.location
+
+  dynamic "subnet" {
+  for_each = each.value.Subnets
+
+  content {
+       name           = subnet.value.name
+      address_prefix = cidrsubnet(each.value.address_space, subnet.value.newbits, subnet.value.netnum)
+    }
+  }
+  
+ depends_on = [data.azurerm_resource_group.rg]
+  
   
 }
 
-resource "azurerm_virtual_network" "vnet2" {
-  name = "vnet2"
-  address_space = [ "10.0.0.0/24" ]
+
+resource "azurerm_network_security_group" "nsg" {
+  for_each = toset(local.nsg_names)
+
+  name                = each.key
   resource_group_name = data.azurerm_resource_group.rg.name
-  location = data.azurerm_resource_group.rg.location
-  
+  location            = data.azurerm_resource_group.rg.location
+
+  dynamic "security_rule" {
+    for_each = { for rule in local.rules_csv : rule.name => rule }
+    content {
+      name                       = security_rule.value.name
+      priority                   = security_rule.value.priority
+      direction                  = security_rule.value.direction
+      access                     = security_rule.value.access
+      protocol                   = security_rule.value.protocol
+      source_port_range          = security_rule.value.source_port_range
+      destination_port_range     = security_rule.value.destination_port_range
+      source_address_prefix      = security_rule.value.source_address_prefix
+      destination_address_prefix = security_rule.value.destination_address_prefix
+    }
+  }
 }
 
-resource "azurerm_subnet" "webserver1" {
-    name = "webserver1"
-    address_prefixes = [ local.vnet1_subnets[0] ]
-    resource_group_name = data.azurerm_resource_group.rg.name
-    virtual_network_name = azurerm_virtual_network.vnet1.name
-    depends_on = [ data.azurerm_resource_group.rg ]
-}
-
-resource "azurerm_subnet" "appserver1" {
-   name = "appserver1"
-   address_prefixes = [ local.vnet2_subnets[1] ]
-    resource_group_name = data.azurerm_resource_group.rg.name
-    virtual_network_name = azurerm_virtual_network.vnet1.name
-    depends_on = [ data.azurerm_resource_group.rg ]
-}
-
-resource "azurerm_subnet" "webserver2" {
-    name = "webserver2"
-    address_prefixes = [ local.vnet2_subnets[0] ]
-    resource_group_name = data.azurerm_resource_group.rg.name
-    virtual_network_name = azurerm_virtual_network.vnet2.name
-    depends_on = [ data.azurerm_resource_group.rg ]
-}
-
-resource "azurerm_subnet" "appserver2" {
-   name = "appserver2"
-   address_prefixes = [local.vnet2_subnets[1] ]
-    resource_group_name = data.azurerm_resource_group.rg.name
-    virtual_network_name = azurerm_virtual_network.vnet2.name
-    depends_on = [ data.azurerm_resource_group.rg ]
-}
-
-
-resource "azurerm_network_security_group" "nsg_subnet1_vnet1" {
-  name = "nsg-subnet1-vnet1"
-  resource_group_name = data.azurerm_resource_group.rg.name
-  location = data.azurerm_resource_group.rg.location
-  
-}
-
-resource "azurerm_network_security_group" "nsg_subnet2_vnet1" {
-  name = "nsg-subnet2-vnet1"
-  resource_group_name = data.azurerm_resource_group.rg.name
-  location = data.azurerm_resource_group.rg.location
-}
-resource "azurerm_network_security_group" "nsg_subnet1_vnet2" {
-  name = "nsg-subnte1-vnet2"
-  resource_group_name = data.azurerm_resource_group.rg.name
-  location = data.azurerm_resource_group.rg.location
-  
-}
-resource "azurerm_network_security_group" "nsg_subnet2_vnet2" {
-  name = "nsg-subnet2-vnet2"
-  resource_group_name = data.azurerm_resource_group.rg.name
-  location = data.azurerm_resource_group.rg.location
-  
-}
-
-resource "azurerm_network_security_rule" "subnet1-vnet1-rule" {
-  
-  for_each = local.ag_inbound_ports_map
-  name                        = "Rule-port-${each.value.destination_port}-${each.value.access}"
-  priority                    = each.key
-  direction                   = "Inbound"
-  access                      = each.value.access
-  protocol                    = "Tcp"
-  source_port_range           = "*"
-  destination_port_range      = each.value.destination_port
-  source_address_prefix       = each.value.source_address
-  destination_address_prefix  = "*"
-  resource_group_name         = data.azurerm_resource_group.rg.name
-    network_security_group_name = azurerm_network_security_group.nsg_subnet1_vnet1.name
-    depends_on = [ azurerm_virtual_network.vnet1 ]
-
-}
-resource "azurerm_network_security_rule" "subnet2-vnet1-rule" {
-  
-  for_each = local.ag_inbound_ports_map
-  name                        = "Rule-port-${each.value.destination_port}-${each.value.access}"
-  priority                    = each.key
-  direction                   = "Inbound"
-  access                      = each.value.access
-  protocol                    = "Tcp"
-  source_port_range           = "*"
-  destination_port_range      = each.value.destination_port
-  source_address_prefix       = each.value.source_address
-  destination_address_prefix  = "*"
-  resource_group_name         = data.azurerm_resource_group.rg.name
-    network_security_group_name = azurerm_network_security_group.nsg_subnet2_vnet1.name
-    depends_on = [ azurerm_virtual_network.vnet1 ]
-
-}
-resource "azurerm_network_security_rule" "subnet1-vnet2-rule" {
-  
-  for_each = local.ag_inbound_ports_map
-  name                        = "Rule-port-${each.value.destination_port}-${each.value.access}"
-  priority                    = each.key
-  direction                   = "Inbound"
-  access                      = each.value.access
-  protocol                    = "Tcp"
-  source_port_range           = "*"
-  destination_port_range      = each.value.destination_port
-  source_address_prefix       = each.value.source_address
-  destination_address_prefix  = "*"
-  resource_group_name         = data.azurerm_resource_group.rg.name
-    network_security_group_name = azurerm_network_security_group.nsg_subnet1_vnet2.name
-    depends_on = [ azurerm_virtual_network.vnet1 ]
-
-}
-resource "azurerm_network_security_rule" "subnet2-vnet2-rule" {
-  
-  for_each = local.ag_inbound_ports_map
-  name                        = "Rule-port-${each.value.destination_port}-${each.value.access}"
-  priority                    = each.key
-  direction                   = "Inbound"
-  access                      = each.value.access
-  protocol                    = "Tcp"
-  source_port_range           = "*"
-  destination_port_range      = each.value.destination_port
-  source_address_prefix       = each.value.source_address
-  destination_address_prefix  = "*"
-  resource_group_name         = data.azurerm_resource_group.rg.name
-    network_security_group_name = azurerm_network_security_group.nsg_subnet2_vnet2.name
-    depends_on = [ azurerm_virtual_network.vnet1 ]
-
-}
-
-resource "azurerm_subnet_network_security_group_association" "subnet1_vnet1_associate" {
-   subnet_id = azurerm_subnet.appserver1.id
-   network_security_group_id = azurerm_network_security_group.nsg_subnet1_vnet1.id
-   depends_on = [ azurerm_network_security_rule.subnet1-vnet1-rule ]
-}
-resource "azurerm_subnet_network_security_group_association" "subnet2_vnet1_associate" {
-   subnet_id = azurerm_subnet.webserver1.id
-   network_security_group_id = azurerm_network_security_group.nsg_subnet2_vnet1.id
-   depends_on = [ azurerm_network_security_group.nsg_subnet1_vnet1 ]
-}
-resource "azurerm_subnet_network_security_group_association" "subnet1_vnet2_associate" {
-   subnet_id = azurerm_subnet.webserver2.id
-   network_security_group_id = azurerm_network_security_group.nsg_subnet1_vnet2.id
-   depends_on = [ azurerm_network_security_group.nsg_subnet1_vnet2 ]
-}
-resource "azurerm_subnet_network_security_group_association" "subnet2_vnet2_associate" {
-   subnet_id = azurerm_subnet.appserver2.id
-   network_security_group_id = azurerm_network_security_group.nsg_subnet2_vnet2.id
-   depends_on = [ azurerm_network_security_group.nsg_subnet2_vnet2 ]
+resource "azurerm_subnet_network_security_group_association" "nsg-association" {
+  for_each = var.vnets
+  subnet_id = each.value.subnet.id
+  network_security_group_id = azurerm_network_security_group.nsg[each.value].id
+  depends_on = [ azurerm_network_security_group.nsg ]
 }
