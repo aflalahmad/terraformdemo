@@ -37,3 +37,4 @@ variable "rules_file" {
     default = "rules-20.csv"
   
 }
+

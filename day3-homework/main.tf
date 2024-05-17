@@ -65,7 +65,8 @@ resource "azurerm_network_security_group" "nsg" {
 }
 
 resource "azurerm_subnet_network_security_group_association" "nsg-association" {
-  subnet_id = azurerm_virtual_network.vnets[each.key].subnet[each.value].id
-  network_security_group_id = azurerm_network_security_group.nsg[each.key].id
+  for_each = var.vnets
+  subnet_id = each.value.subnet.id
+  network_security_group_id = azurerm_network_security_group.nsg[each.value].id
   depends_on = [ azurerm_network_security_group.nsg ]
 }
