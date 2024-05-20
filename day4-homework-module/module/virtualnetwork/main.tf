@@ -7,7 +7,7 @@ resource "azurerm_virtual_network" "vnets" {
 
 resource "azurerm_subnet" "subnets" {
 
-count                = var.subnet-count
+  count                = var.subnet-count
   name                 = "${var.subnet-name}-${count.index + 1}"
   address_prefixes     = [cidrsubnet(var.address_space[0], var.subnet-bits, count.index)]
   resource_group_name  = var.rg-details

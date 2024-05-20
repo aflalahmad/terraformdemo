@@ -26,7 +26,7 @@ module "resource_group" {
 module "virtual_network" {
   source        = "../module/virtualnetwork"
   vnet-name     = "vnet-1"
-  rg-details    = "Team-A"
+  rg-details    = module.resource_group.rg.name
   location      = "eastus"
   address_space = ["10.1.0.0/16"]
   subnet-name   = "subnet"
@@ -46,6 +46,6 @@ module "network-security-group" {
     nsg4 = { name = "nsg4" }
   }
   location = "eastus"
-  rg-details = "Team-A"
+  rg-details = module.resource_group.rg.name
 }
 
